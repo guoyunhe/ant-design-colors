@@ -1,4 +1,4 @@
-import { inputToRGB, rgbToHex, rgbToHsv } from '@ctrl/tinycolor';
+import { FastColor } from '@ant-design/fast-color';
 
 const hueStep = 2; // 色相阶梯
 const saturationStep = 0.16; // 饱和度阶梯，浅色部分
@@ -27,36 +27,15 @@ interface HsvObject {
   v: number;
 }
 
-interface RgbObject {
-  r: number;
-  g: number;
-  b: number;
-}
-
-// Wrapper function ported from TinyColor.prototype.toHsv
-// Keep it here because of `hsv.h * 360`
-function toHsv({ r, g, b }: RgbObject): HsvObject {
-  const hsv = rgbToHsv(r, g, b);
-  return { h: hsv.h * 360, s: hsv.s, v: hsv.v };
-}
-
-// Wrapper function ported from TinyColor.prototype.toHexString
-// Keep it here because of the prefix `#`
-function toHex({ r, g, b }: RgbObject): string {
-  return `#${rgbToHex(r, g, b, false)}`;
-}
-
 // Wrapper function ported from TinyColor.prototype.mix, not treeshakable.
 // Amount in range [0, 1]
 // Assume color1 & color2 has no alpha, since the following src code did so.
-function mix(rgb1: RgbObject, rgb2: RgbObject, amount: number): RgbObject {
-  const p = amount / 100;
-  const rgb = {
-    r: (rgb2.r - rgb1.r) * p + rgb1.r,
-    g: (rgb2.g - rgb1.g) * p + rgb1.g,
-    b: (rgb2.b - rgb1.b) * p + rgb1.b,
-  };
-  return rgb;
+function mix(rgb1: FastColor, rgb2: FastColor, amount: number) {
+  return new FastColor({
+    r: Math.round((rgb2.r - rgb1.r) * amount + rgb1.r),
+    g: Math.round((rgb2.g - rgb1.g) * amount + rgb1.g),
+    b: Math.round((rgb2.b - rgb1.b) * amount + rgb1.b),
+  });
 }
 
 function getHue(hsv: HsvObject, i: number, light?: boolean): number {
@@ -121,44 +100,37 @@ interface Opts {
 }
 
 export default function generate(color: string, opts: Opts = {}): string[] {
-  const patterns: string[] = [];
-  const pColor = inputToRGB(color);
+  const patterns: FastColor[] = [];
+  const pColor = new FastColor(color);
+  const hsv = pColor.toHsv();
   for (let i = lightColorCount; i > 0; i -= 1) {
-    const hsv = toHsv(pColor);
-    const colorString: string = toHex(
-      inputToRGB({
-        h: getHue(hsv, i, true),
-        s: getSaturation(hsv, i, true),
-        v: getValue(hsv, i, true),
-      }),
-    );
-    patterns.push(colorString);
+    const c = new FastColor({
+      h: getHue(hsv, i, true),
+      s: getSaturation(hsv, i, true),
+      v: getValue(hsv, i, true),
+    });
+    patterns.push(c);
   }
-  patterns.push(toHex(pColor));
+  patterns.push(pColor);
   for (let i = 1; i <= darkColorCount; i += 1) {
-    const hsv = toHsv(pColor);
-    const colorString: string = toHex(
-      inputToRGB({
-        h: getHue(hsv, i),
-        s: getSaturation(hsv, i),
-        v: getValue(hsv, i),
-      }),
-    );
-    patterns.push(colorString);
+    const c = new FastColor({
+      h: getHue(hsv, i),
+      s: getSaturation(hsv, i),
+      v: getValue(hsv, i),
+    });
+    patterns.push(c);
   }
 
   // dark theme patterns
   if (opts.theme === 'dark') {
     return darkColorMap.map(({ index, opacity }) => {
-      const darkColorString: string = toHex(
-        mix(
-          inputToRGB(opts.backgroundColor || '#141414'),
-          inputToRGB(patterns[index]),
-          opacity * 100,
-        ),
-      );
+      const darkColorString: string = mix(
+        new FastColor(opts.backgroundColor || '#141414'),
+        patterns[index],
+        opacity,
+      ).toHexString();
       return darkColorString;
     });
   }
-  return patterns;
+  return patterns.map((c) => c.toHexString());
 }

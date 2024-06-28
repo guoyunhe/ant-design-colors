@@ -28,7 +28,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@ctrl/tinycolor": "^3.6.1"
+    "@ant-design/fast-color": "^1.0.0"
   },
   "devDependencies": {
     "@types/jest": "^26.0.0",
